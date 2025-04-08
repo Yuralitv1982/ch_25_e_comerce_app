@@ -1,17 +1,16 @@
 {
-  "type":"module",
-  "name": "ch_25_e_comerce_app",
+  "name": "ecomm",
   "version": "1.0.0",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "dev":"nodemon index.js"
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "express": "^5.1.0",
-    "nodemon": "^3.1.9"
+    "express": "^4.17.1",
+    "nodemon": "^1.19.4"
   }
 }
