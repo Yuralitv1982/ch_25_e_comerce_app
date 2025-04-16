@@ -1,5 +1,5 @@
 {
-  "type":"module", 
+  "type": "module",
   "name": "ecomm",
   "version": "1.0.0",
   "description": "",
@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cookie-session": "^2.1.0",
     "express": "^4.17.1",
     "nodemon": "^1.19.4"
   }
