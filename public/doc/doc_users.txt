@@ -1,0 +1,191 @@
+1. Импорты:
+
+JavaScript
+
+import fs from 'fs';
+import crypto from 'crypto';
+import util from 'util';
+
+const scrypt = util.promisify(crypto.scrypt);
+fs: Модуль Node.js для работы с файловой системой. Используется для чтения и записи данных в файл users.json.
+crypto: Модуль Node.js, предоставляющий криптографические функции. Здесь используется для генерации случайных salt'ов и для хеширования паролей с помощью алгоритма scrypt.
+util: Модуль Node.js, предоставляющий различные утилиты. Здесь используется util.promisify для преобразования асинхронной функции обратного вызова crypto.scrypt в функцию, возвращающую Promise, что упрощает использование с async/await.
+2. Класс UsersRepository:
+
+JavaScript
+
+class UsersRepository {
+    constructor(filename) {
+        if (!filename) {
+            throw new Error('Creating a repository requires a filename');
+        }
+
+        this.filename = filename;
+        try {
+            fs.accessSync(this.filename);
+        } catch (err) {
+            fs.writeFileSync(this.filename, '[]');
+        }
+    }
+Конструктор (constructor):
+Принимает имя файла (filename) в качестве аргумента. Если имя файла не предоставлено, выбрасывает ошибку.
+Сохраняет имя файла в свойстве this.filename.
+Пытается синхронно проверить существование файла (fs.accessSync).
+Если файл не существует (возникает ошибка), он синхронно создает новый файл и записывает в него пустой JSON-массив ('[]'), предполагая, что это будет хранилище для массива объектов пользователей.
+3. Метод getAll():
+
+JavaScript
+
+    async getAll() {
+        return JSON.parse(
+            await fs.promises.readFile(this.filename, {
+                encoding: 'utf8',
+            })
+        );
+    }
+Асинхронно читает содержимое файла, указанного в this.filename, используя кодировку UTF-8.
+Парсит прочитанные данные из JSON-строки в массив JavaScript-объектов и возвращает этот массив.
+4. Метод create(attrs):
+
+JavaScript
+
+    async create(attrs) {
+        // attrs === { email: , password: ''}
+        attrs.id = this.randomId();
+
+        const salt = crypto.randomBytes(8).toString('hex');
+        const buf = await scrypt(attrs.password, salt, 64);
+
+        const records = await this.getAll();
+        const record = {
+            ...attrs,
+            password: `${buf.toString('hex')}.${salt}`,
+        };
+        records.push(record);
+
+        await this.writeAll(records);
+
+        return record;
+    }
+Асинхронно создает новую запись пользователя.
+Принимает объект attrs с атрибутами пользователя (например, email, password).
+Генерирует случайный уникальный ID для пользователя с помощью this.randomId() и добавляет его к объекту attrs.
+Безопасность паролей:
+Генерирует случайный 8-байтовый salt (соль) и преобразует его в шестнадцатеричную строку. Salt используется для защиты от радужных таблиц и других атак на хешированные пароли.
+Использует асинхронную функцию scrypt для хеширования предоставленного пароля (attrs.password) с использованием сгенерированного salt'а. scrypt является криптографически стойким алгоритмом хеширования, требующим значительных вычислительных ресурсов, что затрудняет атаки методом перебора.
+Полученный хеш (в виде буфера buf) преобразуется в шестнадцатеричную строку.
+Создает новый объект record, объединяя исходные атрибуты (...attrs) и сохраняя хешированный пароль вместе с salt'ом в формате хеш.соль в свойстве password.
+Получает все существующие записи пользователей с помощью this.getAll().
+Добавляет новую запись record в массив records.
+Записывает обновленный массив records обратно в файл с помощью this.writeAll(records).
+Возвращает созданную запись пользователя (record).
+5. Метод comparePasswords(saved, supplied):
+
+JavaScript
+
+    async comparePasswords(saved, supplied) {
+        // saved -> password saved in our database 'hased.salt'users.js
+        // supplied -> password given to us by a user trying sign in
+        const [hashed, salt] = saved.split('.');
+        const hashedSuppliedBuf = await scrypt(supplied, salt, 64);
+
+        return hashed === hashedSuppliedBuf.toString('hex');
+    }
+Асинхронно сравнивает предоставленный пользователем пароль (supplied) с хешированным паролем, сохраненным в базе данных (saved).
+Ожидает, что сохраненный пароль имеет формат хеш.соль.
+Разбивает сохраненный пароль на хеш и salt.
+Использует scrypt для хеширования предоставленного пароля с использованием того же salt'а, который был использован при создании учетной записи.
+Сравнивает полученный хеш с хешем, сохраненным в базе данных. Возвращает true, если они совпадают (пароли верны), и false в противном случае.
+6. Метод writeAll(records):
+
+JavaScript
+
+    async writeAll(records) {
+        await fs.promises.writeFile(
+            this.filename,
+            JSON.stringify(records, null, 2)
+        );
+    }
+Асинхронно записывает предоставленный массив записей (records) в файл, указанный в this.filename.
+Использует JSON.stringify для преобразования массива в JSON-строку. Аргументы null, 2 используются для форматирования JSON-файла с отступами в 2 пробела, что делает его более читабельным.
+7. Метод randomId():
+
+JavaScript
+
+    randomId() {
+        return crypto.randomBytes(4).toString('hex');
+    }
+Синхронно генерирует 4 случайных байта с помощью crypto.randomBytes() и преобразует их в шестнадцатеричную строку. Этот метод используется для создания простых уникальных ID. Для более сложных приложений могут потребоваться более надежные способы генерации ID (например, UUID).
+8. Метод getOne(id):
+
+JavaScript
+
+    async getOne(id) {
+        const records = await this.getAll();
+        return records.find((record) => record.id === id);
+    }
+Асинхронно получает все записи пользователей с помощью this.getAll().
+Использует метод find() массива для поиска записи, ID которой совпадает с предоставленным id.
+Возвращает найденную запись или undefined, если запись с таким ID не найдена.
+9. Метод delete(id):
+
+JavaScript
+
+    async delete(id) {
+        const records = await this.getAll();
+        const filteredRecords = records.filter((record) => record.id !== id);
+        await this.writeAll(filteredRecords);
+    }
+Асинхронно получает все записи пользователей.
+Использует метод filter() массива для создания нового массива, содержащего все записи, кроме той, чей ID совпадает с предоставленным id.
+Записывает отфильтрованный массив обратно в файл, фактически удаляя запись с указанным ID.
+10. Метод update(id, attrs):
+
+JavaScript
+
+    async update(id, attrs) {
+        const records = await this.getAll();
+        const record = records.find((record) => record.id === id);
+
+        if (!record) {
+            throw new Error(`Record with id ${id} not found`);
+        }
+
+        Object.assign(record, attrs);
+        await this.writeAll(records);
+    }
+Асинхронно получает все записи пользователей.
+Находит запись с указанным id. Если запись не найдена, выбрасывает ошибку.
+Использует Object.assign() для копирования свойств из объекта attrs в найденную запись record, обновляя ее атрибуты.
+Записывает обновленный массив записей обратно в файл.
+11. Метод getOneBy(filters):
+
+JavaScript
+
+    async getOneBy(filters) {
+        const records = await this.getAll();
+        for (let record of records) {
+            let found = true;
+
+            for (let key in filters) {
+                if (record[key] !== filters[key]) {
+                    found = false;
+                }
+            }
+            if (found) {
+                return record;
+            }
+        }
+    }
+Асинхронно получает все записи пользователей.
+Итерируется по каждой записи (record) в массиве.
+Для каждой записи проверяет, соответствуют ли ее свойства значениям, указанным в объекте filters.
+Если все ключи и значения в filters совпадают с соответствующими свойствами текущей записи, возвращает эту запись.
+Если после проверки всех записей совпадение не найдено, возвращает undefined.
+12. Экспорт экземпляра класса:
+
+JavaScript
+
+export default new UsersRepository('users.json');
+Создает новый экземпляр класса UsersRepository с именем файла 'users.json' и экспортирует его по умолчанию. Это означает, что в других модулях этот репозиторий можно будет импортировать как import usersRepo from './repositories/users.js';.
+В целом, этот класс предоставляет удобный интерфейс для работы с данными пользователей, хранящимися в JSON-файле, и включает в себя важные аспекты безопасности, такие как хеширование паролей с использованием salt'а.
