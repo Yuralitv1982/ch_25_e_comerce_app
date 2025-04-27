@@ -6,24 +6,45 @@ import usersRepo from './repositories/users.js';
 const app = express();
 
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static('public')); // Добавляем middleware для статических файлов
 app.use(
    cookieSession({
       keys: ['lkasld235j'],
    })
 );
 
+const layout = (content) => {
+   return `
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Аутентификация</title>
+            <link rel="stylesheet" href="/css/style.css">
+        </head>
+        <body>
+            ${content}
+        </body>
+        </html>
+    `;
+};
+
 app.get('/signup', (req, res) => {
-   res.send(`
-    <div>
-      Your id is: ${req.session.userId}
-      <form method="POST">
-        <input name="email" placeholder="email" />
-        <input name="password" placeholder="password" />
-        <input name="passwordConfirmation" placeholder="password confirmation" />
-        <button>Sign Up</button>
-      </form>
-    </div>
-  `);
+   res.send(
+      layout(`
+        <div>
+            <h1>Регистрация</h1>
+            <div>Ваш ID сессии: ${req.session.userId || 'не определен'}</div>
+            <form method="POST">
+                <input name="email" placeholder="Email" type="email" required />
+                <input name="password" placeholder="Пароль" type="password" required />
+                <input name="passwordConfirmation" placeholder="Подтвердите пароль" type="password" required />
+                <button>Зарегистрироваться</button>
+            </form>
+        </div>
+    `)
+   );
 });
 
 app.post('/signup', async (req, res) => {
@@ -31,38 +52,39 @@ app.post('/signup', async (req, res) => {
 
    const existingUser = await usersRepo.getOneBy({ email });
    if (existingUser) {
-      return res.send('Email in use');
+      return res.send(
+         layout(`<div class="error">Email уже используется</div>`)
+      );
    }
 
    if (password !== passwordConfirmation) {
-      return res.send('Passwords must match');
+      return res.send(layout(`<div class="error">Пароли не совпадают</div>`));
    }
 
-   // Create a user in our user repo to represent this person
    const user = await usersRepo.create({ email, password });
-
-   // Store the id of that user inside the users cookie
    req.session.userId = user.id;
 
-   res.send('Account created!!!');
+   res.send(layout(`<div>Аккаунт создан!</div>`));
 });
 
 app.get('/signout', (req, res) => {
    req.session = null;
-   res.send('You are logged out');
+   res.send(layout(`<div>Вы вышли из системы</div>`));
 });
 
 app.get('/signin', (req, res) => {
-   res.send(`
-          <div>
-      
-      <form method="POST">
-        <input name="email" placeholder="email" />
-        <input name="password" placeholder="password" />
-        <button>Sign In</button>
-      </form>
-    </div>
-      `);
+   res.send(
+      layout(`
+        <div>
+            <h1>Вход</h1>
+            <form method="POST">
+                <input name="email" placeholder="Email" type="email" required />
+                <input name="password" placeholder="Пароль" type="password" required />
+                <button>Войти</button>
+            </form>
+        </div>
+    `)
+   );
 });
 
 app.post('/signin', async (req, res) => {
@@ -71,7 +93,7 @@ app.post('/signin', async (req, res) => {
    const user = await usersRepo.getOneBy({ email });
 
    if (!user) {
-      return res.send('Email not fount');
+      return res.send(layout(`<div class="error">Email не найден</div>`));
    }
 
    const validPassword = await usersRepo.comparePasswords(
@@ -80,13 +102,13 @@ app.post('/signin', async (req, res) => {
    );
 
    if (!validPassword) {
-      return res.send('Invalid password');
+      return res.send(layout(`<div class="error">Неверный пароль</div>`));
    }
 
    req.session.userId = user.id;
-   res.send('You are signed in!');
+   res.send(layout(`<div>Вы успешно вошли в систему!</div>`));
 });
 
 app.listen(3000, () => {
-   console.log('Listening');
+   console.log('Сервер запущен на порту 3000');
 });
