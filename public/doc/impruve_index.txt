@@ -1,0 +1,105 @@
+1. Структура кода
+Роуты: Вместо того чтобы размещать все обработчики маршрутов в одном файле, лучше организовать их в отдельные файлы. Например:
+
+routes/auth.js — для маршрутов регистрации, входа и выхода.
+
+routes/static.js — для маршрутов статических файлов.
+
+Затем подключите роуты в index.js:
+
+javascript
+import authRoutes from './routes/auth.js';
+app.use('/auth', authRoutes);
+2. Валидация ввода
+Сейчас отсутствует строгая проверка данных (например, email, пароль). Используйте библиотеку Joi или express-validator:
+
+javascript
+import { body, validationResult } from 'express-validator';
+
+app.post('/signup',
+  [
+    body('email').isEmail().withMessage('Введите корректный Email'),
+    body('password').isLength({ min: 6 }).withMessage('Пароль должен быть минимум 6 символов'),
+    body('passwordConfirmation').custom((value, { req }) => value === req.body.password).withMessage('Пароли не совпадают'),
+  ],
+  (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.send(layout(`<div class="error">${errors.array()[0].msg}</div>`));
+    }
+    // Логика регистрации
+  }
+);
+3. Шифрование паролей
+Убедитесь, что пароли хранятся в безопасном виде. Для этого используйте библиотеку bcrypt:
+
+javascript
+import bcrypt from 'bcrypt';
+
+const hashedPassword = await bcrypt.hash(password, 12);
+const user = await usersRepo.create({ email, password: hashedPassword });
+4. Защита от CSRF-атак
+Используйте библиотеку csurf для защиты от атак типа CSRF:
+
+javascript
+import csurf from 'csurf';
+
+app.use(csurf());
+
+app.post('/signup', (req, res) => {
+  // Проверка токена CSRF
+  const csrfToken = req.csrfToken();
+  res.send(layout(`<form method="POST"><input type="hidden" name="_csrf" value="${csrfToken}"/>`));
+});
+5. Логирование
+Добавьте систему логирования, чтобы легко отслеживать ошибки и активность. Используйте winston или morgan:
+
+javascript
+import morgan from 'morgan';
+
+app.use(morgan('combined')); // Логирование всех запросов
+6. Ошибки и централизованная обработка
+Внедрите централизованный обработчик ошибок:
+
+javascript
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send(layout(`<div class="error">Произошла ошибка</div>`));
+});
+7. Безопасность cookies
+Добавьте параметры для cookies, чтобы сделать их более защищёнными:
+
+javascript
+app.use(
+  cookieSession({
+    keys: ['lkasld235j'],
+    maxAge: 24 * 60 * 60 * 1000, // Действует один день
+    httpOnly: true, // Cookie недоступны через JavaScript
+  })
+);
+8. Экологические переменные
+Вместо явного указания ключей или порта, используйте dotenv для работы с переменными окружения:
+
+javascript
+import dotenv from 'dotenv';
+dotenv.config();
+
+app.use(
+  cookieSession({
+    keys: [process.env.COOKIE_KEY],
+  })
+);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Сервер запущен на порту ${PORT}`);
+});
+9. Тестирование
+Внедрите тесты для роутов, используя Jest или Mocha с Supertest.
+
+10. Адаптация к масштабируемости
+Подготовьте приложение для масштабируемости, добавив:
+
+Реверс-прокси (например, nginx).
+
+Возможность развертывания в контейнерах с использованием Docker.
