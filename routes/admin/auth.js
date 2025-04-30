@@ -1,4 +1,5 @@
 import express from 'express';
+import { check, validationResult } from 'express-validator';
 import usersRepo from '../../repositories/users.js';
 import signupTemplate from '../../views/admin/auth/signup.js';
 import signinTemplate from '../../views/admin/auth/signin.js';
@@ -25,25 +26,41 @@ router.get('/signup', (req, res) => {
    res.send(signupTemplate({ req }));
 });
 
-router.post('/signup', async (req, res) => {
-   const { email, password, passwordConfirmation } = req.body;
+router.post(
+   '/signup',
+   [
+      check('email')
+         .trim()
+         .normalizeEmail()
+         .isEmail()
+         .withMessage('Must be a valid email')
+         .custom(async (email) => {
+            const existingUser = await usersRepo.getOneBy({ email });
+            if (existingUser) {
+               throw new Error('Email in use');
+            }
+         }),
+      check('password').trim().isLength({ min: 4, max: 8 }),
+      check('passwordConfirmation')
+         .trim()
+         .isLength({ min: 4, max: 8 })
+         .withMessage('Must be between 4 and 8 characters')
+         .custom((passwordConfirmation, { req }) => {
+            if (passwordConfirmation !== req.body.password) {
+               throw new Error('Password must match');
+            }
+         }),
+   ],
+   async (req, res) => {
+      const errors = validationResult(req);
+      console.log(errors);
+      const { email, password, passwordConfirmation } = req.body;
+      const user = await usersRepo.create({ email, password });
+      req.session.userId = user.id;
 
-   const existingUser = await usersRepo.getOneBy({ email });
-   if (existingUser) {
-      return res.send(
-         layout(`<div class="error">Email уже используется</div>`)
-      );
+      res.send(layout(`<div>Аккаунт создан!</div>`));
    }
-
-   if (password !== passwordConfirmation) {
-      return res.send(layout(`<div class="error">Пароли не совпадают</div>`));
-   }
-
-   const user = await usersRepo.create({ email, password });
-   req.session.userId = user.id;
-
-   res.send(layout(`<div>Аккаунт создан!</div>`));
-});
+);
 
 router.get('/signout', (req, res) => {
    req.session = null;

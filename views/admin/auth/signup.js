@@ -1,5 +1,7 @@
+import layout from '../layout.js';
 export default function signupTemplate({ req }) {
-   return `<div>
+   return layout({
+      content: `<div>
                 <h1>Регистрация</h1>
                 <div>Ваш ID сессии: ${
                    req.session.userId || 'не определен'
@@ -10,5 +12,6 @@ export default function signupTemplate({ req }) {
                     <input name="passwordConfirmation" placeholder="Подтвердите пароль" type="password" required />
                     <button>Зарегистрироваться</button>
                 </form>
-            </div>`;
+            </div>`,
+   });
 }
